@@ -69,6 +69,7 @@ public class RTSmini{
 				for(int i=0;i<ls.size();i++)
 					if(ls.get(i).name.compareTo(name)==0){
 						long hash = getHash(ls.get(i));
+						owner=owner.replace("/",".");
 						hm.put(owner+"."+name,hash);
 						readMethodInstructions(hm,ls.get(i),filePath);
 						break;
