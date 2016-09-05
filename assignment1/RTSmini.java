@@ -71,11 +71,12 @@ public class RTSmini{
 				MethodInsnNode min= (MethodInsnNode) ai ;
 				String owner=min.owner;
 				String name=min.name;
+				String desc=min.desc;
 				List<MethodNode> ls=getMethods(filePath+owner+".class");
 				if(ls==null)
 					continue;
 				for(int i=0;i<ls.size();i++)
-					if(ls.get(i).name.compareTo(name)==0){
+					if(ls.get(i).name.compareTo(name)==0 && ls.get(i).desc.compareTo(desc)==0){
 						long hash = getHash(ls.get(i));
 						owner=owner.replace("/",".");
 						hm.put(owner+"."+name,hash);
