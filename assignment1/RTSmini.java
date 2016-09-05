@@ -16,9 +16,10 @@ import org.objectweb.asm.tree.MethodNode;
 public class RTSmini{	
 	public static void main(String args[]) throws Exception{
 		for(int u=2;u<args.length;u++){
-			HashMap<String,Long> hm1=new HashMap<String,Long>();
+			HashMap<String,Long> hm1=new HashMap<String,Long>();//using hashmap to store dependent methods and  hash
 			HashMap<String,Long> hm2=new HashMap<String,Long>();
-			List<MethodNode> methods=getMethods(args[u]+".class");
+			List<MethodNode> methods=getMethods(args[u]+".class");//get the methods of a class 
+			//analyse all the methods of a class
 			for(int i=0;i<methods.size();i++){
 				MethodNode m=methods.get(i);
 				long hash=getHash(m);
@@ -26,9 +27,10 @@ public class RTSmini{
 					continue;
 				hm1.put(args[u]+"."+m.name,hash);
 				hm2.put(args[u]+"."+m.name,hash);
-				readMethodInstructions(hm1,m,args[0]);
+				readMethodInstructions(hm1,m,args[0]);//traverse all instructions of a method
 				readMethodInstructions(hm2,m,args[1]);
 			}
+			//check whether there is any change in classes by comparing hashcodes 
 			if(!findChanges(hm1,hm2)){
 				FileOutputStream fos=new FileOutputStream("RUN.txt");
 				BufferedWriter bw=new BufferedWriter(new OutputStreamWriter(fos));
@@ -36,7 +38,7 @@ public class RTSmini{
 				bw.close();
 			}
 			String file=args[u]+".txt";
-			writeToFile(hm1,file);
+			writeToFile(hm1,file);//output dependencies to files 
 		}
 	}
 	/**
@@ -66,21 +68,23 @@ public class RTSmini{
 		int t;
 		for(int j=0;j<m.instructions.size();j++){
 			AbstractInsnNode ai=m.instructions.get(j);
-			t=ai.getType();
+			t=ai.getType();//get the type of a instruction
+			//if a instruction is a call of method, then go to the body of that method and analyse it recursively 
 			if(t==AbstractInsnNode.METHOD_INSN){
 				MethodInsnNode min= (MethodInsnNode) ai ;
-				String owner=min.owner;
-				String name=min.name;
-				String desc=min.desc;
+				String owner=min.owner;//get the owner class of a method 
+				String name=min.name;//get the name of the method 
+				String desc=min.desc;//get the descriptor of a method 
 				List<MethodNode> ls=getMethods(filePath+owner+".class");
 				if(ls==null)
 					continue;
+				//traverse the methods of the class and find out the specific method
 				for(int i=0;i<ls.size();i++)
 					if(ls.get(i).name.compareTo(name)==0 && ls.get(i).desc.compareTo(desc)==0){
 						long hash = getHash(ls.get(i));
 						owner=owner.replace("/",".");
-						hm.put(owner+"."+name,hash);
-						readMethodInstructions(hm,ls.get(i),filePath);
+						hm.put(owner+"."+name,hash);//put the method and its hash into hashmap
+						readMethodInstructions(hm,ls.get(i),filePath);//analyse the method recursively 
 						break;
 					}
 			}
@@ -95,11 +99,13 @@ public class RTSmini{
 	public static long getHash(MethodNode m){
 		int k;
 		byte[] opcode=new byte[m.instructions.size()];
+		//get the opcode of every instruction and store it in a byte array
 		for(int j=0;j<m.instructions.size();j++){
 			AbstractInsnNode ai=m.instructions.get(j);
-			k=ai.getOpcode();
+			k=ai.getOpcode();//get Opcode
 			opcode[j]=(byte)k;
 		}
+		//generate hashcode
 		Checksum c=new Adler32();
 		c.update(opcode,0,opcode.length);
 		long hash=c.getValue();
@@ -111,6 +117,7 @@ public class RTSmini{
 	 *programs
 	 */	
 	public static boolean findChanges(HashMap<String,Long> hm1,HashMap<String,Long> hm2){
+		//traverse two hashmaps and check whether there exists any difference in hashcode 
 		for(String s1: hm1.keySet())
 			if(hm1.get(s1).compareTo(hm2.get(s1))!=0)
 				return false;
