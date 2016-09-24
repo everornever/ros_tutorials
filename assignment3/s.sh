@@ -11,3 +11,4 @@ p="$(find "./javaDir" -name "*.java")"
 cp $p "dir" 2>/dev/null
 jarFile="$(find -name "MSRmini.jar")"
 java -jar $jarFile "dir"
+rm -fr "dir" "./javaDir" 
