@@ -1,0 +1,357 @@
+URL:
+
+Motivation:
+
+When I was learning robort operating system, i found that the tutorials online do not include any discussion about the details of implement path finding of turtlesim (you can just consider it as a robot). The github of ros/tutorials have no such details too. So, I decided to contribute to this github repository and help add this feature. It is very helpfull for the newbies to start understanding the path finding issues of robot and learn details about algorithms. 
+
+What I have done:
+
+Initially, I want to provide a interface to help users learn about robot path finding issues. However, I found it is so complicated to include all details. I spend almost two days and ended up with just the following A* algorithm implementation part. But I will continue to contribute to this. 
+Basicly, the main contribution now is just finish provided a very detailed and accurate implementation of A* algorithm for cost-map based path finding in robot path planing problems. But compared to traditional implementation of A* algorithm, I additionally take into account the cost-map of the space of robot providing that in many circumstances robots have to interact with people. At the same time, I use nested vector in c++ to denote the grid which is more flexible for user to define the size of the cost-map.  
+
+
+
+/*
+ * AstarAlgorithm.cpp
+ *
+ *  Created on: Sep 25, 2016
+ *      Author: ZX
+ */
+#include <cmath>
+#include <stdlib.h>
+#include <limits.h>
+#include <vector>
+#include <algorithm>
+#include <iostream>
+#include <queue>
+#include <fstream>
+#include <stdlib.h>
+using namespace std;
+/**
+ * define a class reprenting the point in a grid
+ * final_cost: total cost
+ * g_cost: the cost to come from initial point
+ * point_cost: the cost of every point
+ * heuristic_cost: the estimated cost to reach goal from current point
+ * from_x, from_y: record the parent of current point
+ */
+class Cell
+{
+public:
+	int x;
+	int y;
+	double final_cost;
+	double g_cost;
+	double heuristic_cost;
+	double point_cost;
+	int from_x;
+	int from_y;
+	Cell(int x,int y);
+	Cell();
+	Cell(int pos_x,int pos_y,double f);
+	int getX();
+	int getY();
+	double getF();
+	double getH();
+	void print();
+	double calculate_heuristic(Cell c);
+	bool operator==(const Cell&c){
+		if(this->x==c.x && this->y==c.y)
+			return true;
+		return false;
+	}
+};
+/*
+ * compare class for the priority queue
+ */
+class Compare
+{
+public:
+	bool operator() (Cell c1, Cell c2)
+	{
+		return (c1.final_cost<c2.final_cost);
+	}
+};
+/*
+ * class for astar search
+ * step_cost: the unit cost to go to neighbor;
+ * cost_map: a collection of points representing the grid
+ * open: the points which haven't been searched
+ * closed: the points which have been searched
+ * initial_cell: initial point
+ * goal_cell: goal point
+ * height, width: size of the grid, defined by user
+ */
+class Astar {
+public:
+	double step_cost;
+	std::vector< vector<Cell> > cost_map;
+	std::priority_queue<Cell,std::vector<Cell>,Compare> open;
+	std::vector<Cell> closed;
+	Cell initial_cell;
+	Cell goal_cell;
+	int height;
+	int width;
+	Astar(double step_cost,Cell goal_cell,Cell initial_cell,int w,int h,std::string filename);
+	void update_cost(Cell current_cell,int i,int j,int flag);
+	void set_obstacle(std::vector<Cell> c);
+	void read_point_cost(std::string filename);
+	void print_map(char c);
+	bool open_contain_cell(Cell c);
+	void get_h_cost();
+	void search();
+	void printSolution();
+};
+
+int main(int argc,char**argv){
+	double step_cost=1.0;
+	int width=10;
+	int height=10;
+	Cell initial_cell(3,0,0.0);
+	Cell goal_cell(8,9,0.0);
+	cout<<initial_cell.calculate_heuristic(goal_cell)<<endl;
+	Astar astar(step_cost,goal_cell,initial_cell,width,height,argv[1]);
+	astar.get_h_cost();
+	std::vector<Cell> obstacle;
+	for(int n=0;n<3;n++){
+		Cell c(rand()%6+3,rand()%7+2);
+		obstacle.push_back(c);
+	}
+	astar.set_obstacle(obstacle);
+	astar.search();
+	return 0;
+}
+
+/*
+ * constructor
+ * user have to define the step cost, goal point, initial point, the size of the grid
+ * and the filepath for the point cost
+ */
+Astar::Astar(double step_cost,Cell goal_cell,Cell initial_cell,int w, int h,std::string filename){
+	this->step_cost=step_cost;
+	this->goal_cell=goal_cell;
+	this->initial_cell=initial_cell;
+	this->closed.push_back(initial_cell);
+	this->open.push(initial_cell);
+	this->width=w;
+	this->height=h;
+	for(int i=0;i<this->height;i++){
+		std::vector<Cell> vc;
+		for(int j=0;j<this->width;j++){
+			Cell c(i,j);
+			vc.push_back(c);
+		}
+		this->cost_map.push_back(vc);
+	}
+	this->cost_map[initial_cell.x][initial_cell.y].g_cost=0;
+	this->cost_map[initial_cell.x][initial_cell.y].final_cost
+	=this->cost_map[initial_cell.x][initial_cell.y].calculate_heuristic(this->goal_cell);
+	read_point_cost(filename);
+}
+/*
+ * determine whether a point is in the priority queue or not
+ * traverse the priority queue and compare
+ */
+bool Astar::open_contain_cell(Cell c){
+	std::priority_queue<Cell,std::vector<Cell>,Compare> q=this->open;
+	while(!q.empty()){
+		Cell top_cell=q.top();
+		if(top_cell==c)
+			return true;
+		q.pop();
+	}
+	return false;
+}
+/*
+ * read the point_cost of every point in the grid from the given filepath
+ */
+void Astar::read_point_cost(std::string filename){
+	ifstream fin(filename.c_str());
+	std::string str;
+	if(fin.is_open()){
+		for(int i=0;i<height;i++)
+			for(int j=0;j<width;j++){
+				fin>>str;
+				if(fin.eof())
+					return;
+				this->cost_map[i][j].point_cost=atof(str.c_str());
+			}
+	}
+	fin.close();
+}
+/*
+ * set the obstacles in the grid given the points vector
+ */
+void  Astar::set_obstacle(std::vector<Cell> c){
+	for(unsigned int i=0;i<c.size();i++)
+		this->cost_map[c[i].x][c[i].y].final_cost=(double)INT_MAX;
+}
+/*
+ * calculate the heuristic_cost of every point in the grid
+ */
+void Astar::get_h_cost(){
+	for(int i=0;i<this->height;i++)
+		for(int j=0;j<this->width;j++){
+			this->cost_map[i][j].heuristic_cost=this->cost_map[i][j].calculate_heuristic(this->goal_cell);
+		}
+}
+/*
+ * print out the solution
+ */
+void Astar::printSolution(){
+	std::cout<<"the final cost map is:"<<std::endl;
+	for(int i=0;i<this->height;i++){
+		for(int j=0;j<this->width;j++)
+			cout<<this->cost_map[i][j].final_cost<<"\t";
+		std::cout<<"\n";
+	}
+	std::cout<<"the path is:"<<std::endl;
+	Cell current=this->cost_map[this->goal_cell.x][this->goal_cell.y];
+	current.print();
+	while(true){
+		current.print();
+		if(current.from_x==this->initial_cell.x && current.from_y==this->initial_cell.y)
+			break;
+		current=this->cost_map[current.from_x][current.from_y];
+	}
+	this->initial_cell.print();
+}
+/*
+ * update the cost of a point which is under search
+ * if the point is already in the closed vector, then return
+ * if it's g_cost plus the step cost from its neighboor
+ * is lower than its current g_cost then update.
+ * if the point is not in open, then push it in open
+ */
+void Astar:: update_cost(Cell current_cell,int i,int j,int flag){
+	Cell c=this->cost_map[i][j];
+	if(std::find(this->closed.begin(), this->closed.end(), c) != this->closed.end())
+		return;
+	double tentative_g_cost;
+	if(flag==0)
+		tentative_g_cost=current_cell.g_cost+this->step_cost+c.point_cost;
+	else
+		tentative_g_cost=current_cell.g_cost+sqrt(2)*this->step_cost+c.point_cost;
+	bool inOpen = this->open_contain_cell(c);
+	if(tentative_g_cost<c.g_cost){
+		c.from_x = current_cell.x;
+		c.from_y=current_cell.y;
+		c.g_cost=tentative_g_cost;
+		c.final_cost=c.g_cost+c.heuristic_cost+c.point_cost;
+	}
+	if(!inOpen)
+		this->open.push(c);
+	this->cost_map[i][j]=c;
+	return;
+}
+/*
+ * search for path
+ *pop out the first point in the priority queue
+ *search its neighboors and update
+ *put the current point in the closed vector
+ */
+void Astar::search(){
+	Cell current;
+	while(true){
+		if(open.empty())
+			return;
+		current = open.top();
+		open.pop();
+		current.print();
+		closed.push_back(current);
+		if(current == this->goal_cell)
+			return;
+		if(current.x-1>=0)
+			update_cost(current,current.x-1,current.y,0);
+		if(current.x-1>=0 && current.y-1>=0)
+			update_cost(current,current.x-1,current.y-1,1);
+		if(current.x+1<this->width && current.y+1<this->height)
+			update_cost(current,current.x+1,current.y+1,1);
+		if(current.x-1>=0 && current.y+1<this->height)
+			update_cost(current,current.x-1,current.y+1,1);
+		if(current.x+1<this->width && current.y-1>=0)
+			update_cost(current,current.x+1,current.y-1,1);
+		if(current.y-1>=0)
+			update_cost(current,current.x,current.y-1,0);
+		if(current.y+1<this->width)
+			update_cost(current,current.x,current.y+1,0);
+		if(current.x+1<this->height)
+			update_cost(current,current.x+1,current.y,0);
+	}
+}
+/*
+ * print cost_map for debug use
+ */
+void Astar::print_map(char c){
+	if(c=='f')
+		for(int i=0;i<this->height;i++){
+			for(int j=0;j<this->width;j++)
+				cout<<this->cost_map[i][j].final_cost<<"\t";
+			cout<<endl;
+		}
+	else if(c=='g')
+		for(int i=0;i<this->height;i++){
+			for(int j=0;j<this->width;j++)
+				cout<<this->cost_map[i][j].g_cost<<"\t";
+			cout<<endl;
+		}
+	else
+		for(int i=0;i<this->height;i++){
+			for(int j=0;j<this->width;j++)
+				cout<<this->cost_map[i][j].heuristic_cost<<"\t";
+			cout<<endl;
+		}
+}
+
+Cell::Cell(){
+	this->x=0;
+	this->y=0;
+	this->heuristic_cost=0.0;
+	this->final_cost=0.0;
+	this->g_cost=0.0;
+	this->from_x=0;
+	this->from_y=0;
+	this->point_cost=0.0;
+}
+/*
+ * constructor
+ * the final_cost and g_cost of points in the grid have to be initialized to be infinity
+ */
+Cell::Cell(int x,int y){
+	this->x=x;
+	this->y=y;
+	this->heuristic_cost=0.0;
+	this->final_cost=(double) INT_MAX;
+	this->g_cost=(double) INT_MAX;
+	this->from_x=0;
+	this->from_y=0;
+	this->point_cost=0.0;
+}
+
+Cell::Cell(int pos_x,int pos_y,double f){
+	this->x=pos_x;
+	this->y=pos_y;
+	this->final_cost=f;
+	this->heuristic_cost=0.0;
+	this->g_cost=0.0;
+	this->from_x=0;
+	this->from_y=0;
+	this->point_cost=0.0;
+}
+/*
+ * print out the coordinate of a point
+ */
+void Cell::print(){
+	std::cout<<"["<<this->x<<","<<this->y<<"]-->";
+}
+/*
+ * calculate the heuristic_cost of a point
+ * use can define other heuristic function
+ */
+double Cell::calculate_heuristic(Cell goal_cell){
+	return abs(this->x-goal_cell.x)+abs(this->y-goal_cell.y);
+}
+
+
+
+
